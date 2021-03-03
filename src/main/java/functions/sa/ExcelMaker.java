@@ -2,67 +2,91 @@ package functions.sa;
 
 import  java.io.*;
 import java.util.List;
+import java.util.Objects;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.ss.util.CellUtil;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-class ExcelMaker {
+public class ExcelMaker {
 
     private List<MyDoc> myDocList;
     private String name;
+    private MyCellStyle settings;
 
-    ExcelMaker(PDFReader pdf, String name) throws IOException {
+    private XSSFWorkbook workbook;
+    private CellRangeAddress cellAddresses;
+    private XSSFCellStyle defaultStyle, boldStyle, blueStyle, blueTwoStyle;
+    private XSSFSheet sheet1;
+
+    public ExcelMaker(PDFReader pdf, String name) throws IOException {
         this.name = name;
 
         myDocList = pdf.getMyDocList();
         saveFile();
-
     }
 
-    ExcelMaker(ExcelReader excel, String name) throws IOException {
+    public ExcelMaker(ExcelReader excel, String name) throws IOException {
         this.name = name;
 
         myDocList = excel.getMyDocList();
         saveFile();
     }
 
-    ExcelMaker(HTMLReader html, String name) throws IOException {
+    public ExcelMaker(HTMLReader html, String name) throws IOException {
         this.name = name;
 
         myDocList = html.getMyDocList();
         saveFile();
-
     }
 
-    void saveFile() throws IOException {
+    public void saveFile() throws IOException {
         String filename = name;
-        XSSFWorkbook workbook = new XSSFWorkbook();
+        settings = new MyCellStyle();
+        workbook = new XSSFWorkbook();
+        cellAddresses = new CellRangeAddress(1,1,2,5);
+        defaultStyle = settings.getFontDefault(workbook);
+        boldStyle = settings.getFontBold(workbook);
+        blueStyle = settings.getFontBoldBlue(workbook);
+        blueTwoStyle = settings.getFontBoldBlueTwo(workbook);
+        sheet1 = workbook.createSheet("SUM");
+        sheet1.addMergedRegion(cellAddresses);
 
-        //sheet 1
-        XSSFSheet sheet1 = workbook.createSheet("sth");
+        createSheetOne();
+        createSheets();
+
+        FileOutputStream fileOut = new FileOutputStream(filename);
+        workbook.write(fileOut);
+        fileOut.close();
+        workbook.close();
+    }
+
+    private void createSheetOne(){
         Row head1 = sheet1.createRow((short) 1);
-        head1.createCell(2).setCellValue("Approved");
+        Cell cell = CellUtil.createCell(head1,2,"Approved");
+        CellUtil.setAlignment(cell, HorizontalAlignment.CENTER);
+        settings.setMergedBorders(cellAddresses, sheet1);
+
         Row head2 = sheet1.createRow((short) 2);
-        head2.createCell(0).setCellValue("Locales");
+        String[] texts = {"Locales:", "Project", "Simple", "Complex", "Estimation 2", "Estimation 1"};
 
-        //other sheets
+        for(int i = 0; i < texts.length; i++){
+            CellUtil.createCell(head2, i, texts[i], defaultStyle);
+        }
+    }
 
-        int rows = 3;
-        int s = myDocList.get(0).getPath().indexOf('/');
-        String oldPath = myDocList.get(0).getPath().substring(0, s);
+    private void createSheets(){
+        int rows = 2;
+        String oldPath = " ";
+        XSSFSheet sheet = null;
+        Row head, row1, row2;
 
-        Row head = sheet1.createRow((short) rows);
-        head.createCell(0).setCellValue(oldPath);
-
-        XSSFSheet sheet = workbook.createSheet(oldPath);
-
-        Row row1 = sheet.createRow((short) 0);
-        row1.createCell(0).setCellValue("Approved");
-        Row row2 = sheet.createRow((short) 1);
-        row2.createCell(0).setCellValue("Locales");
-
-        int i = 1;
+        int i = 0;
 
         for(MyDoc doc : myDocList){
             int slash = doc.getPath().indexOf('/');
@@ -71,26 +95,33 @@ class ExcelMaker {
             if(!newPath.equals(oldPath)) {
                 rows++;
                 head = sheet1.createRow((short) rows);
-                head.createCell(0).setCellValue(newPath);
-                head.createCell(1).setCellValue(newPath);
+                CellUtil.createCell(head, 0, "0", boldStyle);
+                CellUtil.createCell(head, 1, newPath, boldStyle);
+
+                for(int j = 2; j < 6; j++){
+                    CellUtil.createCell(head, j, "", defaultStyle);
+                }
 
                 sheet = workbook.createSheet(newPath);
+                sheet.addMergedRegion(new CellRangeAddress(0,0,0,4));
+
                 row1 = sheet.createRow((short) 0);
-                row1.createCell(0).setCellValue("Approved");
+                CellUtil.createCell(row1, 0, "APPROVED", blueStyle);
+
                 row2 = sheet.createRow((short) 1);
-                row2.createCell(0).setCellValue("Locales");
+                String[] texts = {"Page", "image name", "Query", "Source Analysis", "Comment"};
+
+                for (int j = 0; j < texts.length; j++) {
+                    CellUtil.createCell(row2, j, texts[j], blueTwoStyle);
+                }
+
                 oldPath = newPath;
                 i = 1;
             }
 
-            Row row = sheet.createRow((short) ++i);
+            Row row = Objects.requireNonNull(sheet).createRow((short) ++i);
             row.createCell(0).setCellValue(doc.getPath());
             row.createCell(1).setCellValue(doc.getName());
         }
-
-        FileOutputStream fileOut = new FileOutputStream(filename);
-        workbook.write(fileOut);
-        fileOut.close();
-        workbook.close();
     }
 }
